@@ -27,9 +27,8 @@ def _pyav_range(path, start, end, decim):
 
 
 class FrameSource:
-    """Decode-on-demand view of a Clip's model frames (no materialization, no re-encode).
-    PyAV seek-decode per BENCHMARK.md. Clips are short (<=401 model frames), so keyframes just
-    decode the range once and sub-sample — cheaper than scattered seeks under the 250-frame GOP."""
+    """Decode-on-demand Clip frames. frames()=PyAV sequential; keyframes(n)=decord get_batch
+    sparse (~3.7x cheaper, identical)."""
 
     def __init__(self, clip):
         self.clip = clip
@@ -39,10 +38,13 @@ class FrameSource:
         return _pyav_range(c.source, c.start, c.end, c.decim)
 
     def keyframes(self, n):
-        fr = self.frames()
-        if len(fr) <= n:
-            return fr
-        return [fr[i] for i in np.linspace(0, len(fr) - 1, n).round().astype(int)]
+        import decord
+
+        c = self.clip
+        if c.n_frames <= n:
+            return self.frames()
+        mi = np.linspace(0, c.n_frames - 1, n).round().astype(int)
+        return list(decord.VideoReader(c.source).get_batch([c.src_frame(int(m)) for m in mi]).asnumpy())
 
 
 def cached_keyframes(cache_dir, clip, n=16):

@@ -16,8 +16,10 @@ Materialize = the same decode **plus** a CPU x264 encode (~30 s/core, **no NVENC
 - **Backend: PyAV** (keyframe-seek + decode-forward) — fastest true single-thread decoder,
   scales 4.8× to 8 threads. decord/torchcodec `get_batch` for **sparse keyframe sampling**
   only. **Never** loop PyAV per-frame seeks (re-decodes overlapping GOPs, slower than full).
-- **GOP 250** ⇒ sampling 12 frames (~6–7 s) is barely cheaper than a full clip decode
-  (~8–9 s); each random seek pays ~125 ramp frames (~23% extra).
+- **Keyframes ≠ full decode:** decord `get_batch` for ~16 sparse frames is ~3.2 s vs ~11.8 s
+  to decode a full 401-frame clip and sub-sample (measured, identical frames) — so
+  `FrameSource.keyframes()` uses `get_batch`, `frames()` uses PyAV. **Seek position is
+  irrelevant** (a clip at f=48000 decodes as fast as f=3000).
 - **Concurrency: 16–24 workers/node, 1 thread each.** Throughput plateaus ~1.2–1.5 clips/s/
   node and *declines* past 32. Warm-cache (no NAS) and cold give the same ceiling ⇒
   **CPU/memory-bound, not NAS-bound** (~35 MB/s NAS draw at W=32). Scale with nodes.
